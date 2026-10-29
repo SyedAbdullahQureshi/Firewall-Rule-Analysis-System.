@@ -14,7 +14,8 @@
 | ☑ | Test-case table (generated from the run) | notebook §4, `docs/TEST_CASES.md` |
 | ☑ | Limitations section | notebook §5, `docs/LIMITATIONS.md` |
 | ☑ | Architecture explanation (prose) | notebook §6, `docs/ARCHITECTURE.md` |
-| ☑ | Screenshots + list of screens | `docs/screenshots/` (10 images), `docs/SCREENSHOTS.md` |
+| ☑ | Screenshots + list of screens | `docs/screenshots/` (8 images), `docs/SCREENSHOTS.md` |
+| ☑ | UI redesign notes + before/after checklist | `docs/UI_REDESIGN.md` |
 | ☑ | Run instructions | `README.md` |
 | ☑ | Reproducible notebook build | `tools/build_notebook.py` (regenerates and re-executes) |
 
@@ -23,12 +24,13 @@
 1. `python -m unittest discover -s tests -v` → **18 tests, OK**.
 2. Restart & Run All in the notebook → every cell runs, the last cell prints
    `FINAL CHECK PASSED` and no cell raises.
-3. `python -m firewall_rules.ui --port 7860` → the app loads the sample policy
-   automatically and all five sections work without an upload.
+3. `python -m firewall_rules.ui --port 7860` → the console UI loads in its empty
+   state (grey badge, simulator disabled); **Load built-in sample policy** then
+   fills every section without an upload.
 4. Upload `docs/examples/invalid_policy.csv` → 8 errors, no crash.
 5. Upload `docs/examples/valid_custom_policy.csv` → 5 rules accepted, 1
    redundant, 1 overlap.
-6. Simulate `8.8.8.8 -> 1.1.1.1:5353/udp` → default DENY, stated as default.
+6. Simulate `8.8.8.8 -> 1.1.1.1:5353/udp` → *NO MATCH — DEFAULT DENY*, stated as default.
 
 ## Environment
 

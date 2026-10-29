@@ -1,6 +1,7 @@
 # Firewall Rule Analysis System
 
-An auditor for **ordered firewall policy files**. It reads a CSV of rules,
+An auditor for **ordered firewall policy files**, presented as a dark technical
+audit console. It reads a CSV of rules,
 validates every field, and reports shadowed, redundant, conflicting and
 overlapping rules, plus a first-match simulation of any packet you describe.
 
@@ -61,7 +62,8 @@ tests/test_acceptance.py              18 unittest acceptance tests (Phase 4)
 docs/
     ARCHITECTURE.md       data flow and design decisions
     LIMITATIONS.md        what the simplified semantics ignore
-    SCREENSHOTS.md        the ten captured screens
+    SCREENSHOTS.md        the captured screens (3 required + 5 supporting)
+    UI_REDESIGN.md        what changed in the console UI and the before/after checklist
     screenshots/          PNG captures of the running app
     examples/             valid and invalid CSVs used for the captures
     TEST_CASES.md         generated test-case table

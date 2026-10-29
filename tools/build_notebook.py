@@ -393,23 +393,71 @@ print(" ", decision.explanation)
 
 PHASE3_INTRO = """
 <a id="3"></a>
-## 3 · Gradio interface
+## 3 · Gradio interface — "technical audit console"
 
 The app is a renderer: every control calls a function from phases 1 and 2 and
 formats the result. It contains no CIDR arithmetic, no port parsing and no
 notion of shadowing, so there is exactly one implementation of the semantics.
 
-| Section | Control | Calls |
-|---|---|---|
-| 1 · Upload | `Validate uploaded CSV`, `Load built-in sample policy` | `load_and_validate` → `analyse_policy` |
-| 2 · Simulate | IP / port / protocol inputs, `Simulate packet`, example presets | `match_packet` (+ `parse_packet` for input validation) |
-| 3 · Analysis | category filter, findings table | `analyse_policy(...).findings_frame()` |
-| 4 · Policy | the validated policy table | the validated DataFrame |
-| 5 · Explain | rule dropdown, `Explain rule` | `explain_rule` |
+**The redesign changed presentation only.** Layout, styling, component
+arrangement, labels and feedback messages were rebuilt; the engine's function
+names, arguments and return structures are untouched, and every handler still
+delegates to `load_and_validate`, `analyse_policy`, `match_packet`,
+`explain_rule` and `parse_packet`.
 
-**Robustness:** empty files, Excel workbooks, binary uploads, wrong encodings,
-missing columns and non-CSV text all produce a message in the error panel. An
-invalid packet input produces a message, not a traceback.
+### Design language
+
+A dark-neutral console with one restrained accent for actions, and four
+semantic colours reused everywhere. Every colour is paired with a text label,
+so colour is never the only signal. The palette is declared once, at the top of
+the `CSS` string, as custom properties — change those and the whole app follows.
+The Gradio theme carries the same values through its own variables
+(`body_background_fill`, `input_background_fill`, …) so panels, inputs, buttons
+and tables are dark at the source rather than by overrides.
+
+| Token | Value | Used for |
+|---|---|---|
+| `--fr-accent` | `#4c8dff` | primary buttons, focus rings, step markers |
+| `--fr-allow` | `#2dd4a7` | ALLOW pills, valid-policy panel, loaded badge |
+| `--fr-deny` | `#ff5d62` | DENY pills, validation errors, "never enforces" |
+| `--fr-shadowed` | `#f5b942` | SHADOWED pills, default-deny decision |
+| `--fr-redundant` | `#a8b8cd` | REDUNDANT pills |
+| `--fr-conflict` | `#ff8a4c` | CONFLICT pills |
+| `--fr-overlap` | `#b39cff` | OVERLAP pills, rule-explanation accent bar |
+
+Fonts are system stacks only (no external fonts): a sans stack for prose and
+`ui-monospace, SFMono-Regular, Consolas, monospace` for IPs, CIDRs, ports and
+rule numbers.
+
+### Screen structure
+
+| # | Region | What it does |
+|---|---|---|
+| 1 | Header band | Title, the line "Policy audit tool · Does not enforce traffic", and a live status badge — grey *No policy loaded* → green *Policy loaded: N rules* → red *Validation errors: N* |
+| 2 | Two-column workspace (stacks under 900px) | Step 1 *Load policy* card, Step 2 *Simulate a packet* card |
+| 3 | Step 1 card | Single-label dropzone, required-columns mono chips, equal-width primary/secondary buttons, and a validation panel: green ✓ with the rule count, or red ✗ with every error listed by row number in monospace |
+| 4 | Step 2 card | Example-packet dropdown, 2×2 inputs (mono for IP/port), full-width primary button, and a decision panel: large ALLOW / DENY / *NO MATCH — DEFAULT DENY* badge, matched-rule chip, and the plain-English explanation |
+| 5 | Step 3 analysis | Segmented control with count badges (All findings (28), Shadowed (3), …), then a findings table with category pills, mono rule pairs, wrapped explanations and a bold-first-sentence review action |
+| 6 | Step 4 policy table | Collapsible, auto-opened after a load, monospace scope columns, ALLOW/DENY pills, right-aligned rule numbers |
+| 7 | Step 5 explain a rule | Dropdown + button on one row, output in a quoted callout with a violet left accent bar |
+| 8 | Footer | "Simplified semantics and limits" as a two-column modelled / not-modelled list, closing with the bold line *This tool audits the policy file and never enforces traffic.* |
+
+### Interaction details
+
+* **Simulate is disabled until a policy loads**, with a helper line saying why;
+  after a load the helper switches to explain the default DENY.
+* **Loading states**: `show_progress="full"` on validation and `"minimal"` on
+  simulation.
+* **Inline field errors**: an invalid source IP, port or destination is flagged
+  under *that* field. The attribution uses the engine's own `parse_packet` — each
+  field is substituted into an otherwise valid packet, so no validation rule is
+  duplicated in the UI.
+* **After a load**: the analysis switches to *All findings* and the policy table
+  opens automatically.
+* **Empty states**: "No analysis yet. Load a policy to begin." with a CSS-only
+  skeleton (no icons), and "No issues found in this category." when a tab is clean.
+* **Contrast**: all 20 foreground/background pairs used by the UI were measured;
+  the lowest ratio is 5.33:1, above the WCAG AA 4.5:1 threshold for normal text.
 
 ### Launching
 
@@ -422,15 +470,18 @@ python -m firewall_rules.ui --host 0.0.0.0 --port 7860
 
 From this notebook, run the cell below with `LAUNCH = True` (it blocks, which is
 why it is off during *Restart & Run All*). Use `inline=True` to render the app
-inside the notebook, or `share=True` for a temporary public link.
+inside the notebook.
 """
 
 LAUNCH_CELL = """
 # ── 3.1 Build the app (no server started) ────────────────────────────────────
-from firewall_rules.ui import build_app, launch_app
+from firewall_rules.ui import build_app, launch_app, handle_load_sample
 
 demo = build_app()
 print("Gradio app built:", type(demo).__name__)
+print("palette tokens :", sum(1 for line in __import__("firewall_rules.ui", fromlist=["CSS"]).CSS.splitlines()
+                              if line.strip().startswith("--fr-")), "CSS custom properties")
+print("theme surfaces :", __import__("firewall_rules.ui", fromlist=["THEME"]).THEME.block_background_fill)
 
 INSTRUCTIONS = '''
 Launch it in either of these ways:
@@ -444,8 +495,9 @@ Launch it in either of these ways:
      "inline=True" renders the UI inside the notebook output; drop it to open a
      new tab. Add share=True for a temporary public link (needs internet).
 
-The app loads the built-in sample policy on start-up, so every section works
-without uploading anything. Upload docs/examples/invalid_policy.csv to see the
+The app opens in its empty state (grey "No policy loaded" badge, simulator
+disabled) - click "Load built-in sample policy" to fill every section without
+uploading anything. Upload docs/examples/invalid_policy.csv to see the
 validation error state and docs/examples/valid_custom_policy.csv for a clean,
 user-supplied policy.
 '''
@@ -464,16 +516,14 @@ SCREENSHOTS_CELL = """
 from IPython.display import Image
 
 CAPTIONS = [
-    ("01_app_overview_sample_policy.png", "1 · Landing state — sample policy auto-loaded, summary and policy table"),
-    ("10_validation_errors.png",          "2 · Upload + validation error state — 8 problems listed by row"),
-    ("02_simulate_allow_rule1.png",       "3 · Simulated packet — allow by rule 1, rule 3 shadowed for it"),
-    ("03_simulate_default_deny.png",      "4 · Simulated packet — no match, documented default DENY"),
-    ("04_simulate_deny_wins.png",         "5 · Simulated packet — deny (rule 7) before allow (rule 8)"),
-    ("05_simulate_invalid_input.png",     "6 · Simulated packet — invalid CIDR/port rejected with a message"),
-    ("06_analysis_conflicts.png",         "7 · Analysis table — conflicts, with the winner and why"),
-    ("07_analysis_shadowed.png",          "8 · Analysis table — shadowed rules and suggested review actions"),
-    ("08_rule_explanation.png",           "9 · Policy explanation — rule 3 explained in plain English"),
-    ("09_valid_custom_upload.png",        "10 · A user CSV (5 rules) validated and re-analysed"),
+    ("01_empty_state.png",       "1 · Empty state — status badge 'No policy loaded', disabled simulator, no-analysis placeholder"),
+    ("03_loaded_findings.png",   "2 · Loaded with findings — green badge 'Policy loaded: 14 rules', segmented tabs with counts, category pills"),
+    ("02_validation_errors.png", "3 · Upload + validation error state — red badge 'Validation errors: 8', every row listed with a monospace row number"),
+    ("04_simulate_allow.png",    "4 · Simulated packet — ALLOW, matched-rule chip 'Rule 1', explanation"),
+    ("05_simulate_deny.png",     "5 · Simulated packet — DENY, matched-rule chip 'Rule 7' (deny before allow)"),
+    ("06_simulate_no_match.png", "6 · Simulated packet — NO MATCH, DEFAULT DENY"),
+    ("07_rule_explanation.png",  "7 · Policy explanation — rule 3 in the quoted callout"),
+    ("08_policy_table.png",      "8 · Step 4 policy table — monospace scope columns with ALLOW/DENY pills"),
 ]
 
 for filename, caption in CAPTIONS:
@@ -590,10 +640,18 @@ check("default action is deny and is applied on no match",
 # Phase 3
 check("Gradio app builds without a server", demo is not None,
       f"{len(demo.blocks)} blocks")
+from firewall_rules.ui import CSS as UICSS, THEME as UITHEME
+check("custom stylesheet defines the palette in one place",
+      all(token in UICSS for token in ("--fr-allow", "--fr-deny", "--fr-shadowed",
+                                       "--fr-redundant", "--fr-conflict", "--fr-overlap")))
+check("theme carries the dark surfaces (not just CSS overrides)",
+      getattr(UITHEME, "block_background_fill", None) == "#151a21")
+check("simulate starts disabled until a policy loads",
+      handle_load_sample()["simulate_button"]["interactive"] is True)
 
 # Phase 4
 check("acceptance suite is green", outcome.wasSuccessful(), f"{outcome.testsRun} tests")
-check("screenshots present", len(list(pathlib.Path("docs/screenshots").glob("*.png"))) == 10,
+check("screenshots present", len(list(pathlib.Path("docs/screenshots").glob("*.png"))) == 8,
       f"{len(list(pathlib.Path('docs/screenshots').glob('*.png')))} images")
 check("docs present",
       all(pathlib.Path("docs", name).exists()

@@ -32,6 +32,7 @@ firewall_rules/engine.py         compile_policy()   clean policy → list[Rule]
         │
         ▼
 firewall_rules/ui.py             Gradio handlers    render findings, never decide them
+                                 + CSS/HTML helpers  pills, panels, badges, cards
 ```
 
 ## 2. Data flow, stage by stage
@@ -93,14 +94,18 @@ reported as the winner since first-match evaluation stops there.
 `analyse_policy` runs all four and returns one `AnalysisResult`, each finding
 carrying both its explanation and a suggested review action.
 
-**Stage 5 — presentation.** The Gradio app holds one `gr.State` cell: the
-validated policy DataFrame. Every interaction — upload, load sample, change
+**Stage 5 — presentation.** (Redesigned as a dark "technical audit console";
+see `docs/UI_REDESIGN.md` for the change log and `docs/SCREENSHOTS.md` for the
+screens.) The styling lives in one `CSS` string whose palette is declared once
+as custom properties, and the same values are pushed into the Gradio theme
+variables so surfaces are dark at the source. The Gradio app holds one
+`gr.State` cell: the validated policy DataFrame. Every interaction — upload, load sample, change
 the category filter, simulate, explain a rule — calls a library function and
-formats the returned objects as Markdown or as a DataFrame. The UI contains no
+formats the returned objects as styled HTML or as a DataFrame. The UI contains no
 CIDR arithmetic, no port-range parsing and no notion of shadowing; it decides
-layout, wording and colour only. Both the "load sample" button and the
-on-load handler call the same `load_policy_source` function, so the demo path
-and the upload path cannot drift apart.
+layout, wording and colour only. Both the "load sample" button and the upload
+button call the same `load_policy_source` function, so the demo path and the
+upload path cannot drift apart.
 
 ## 3. Design decisions and why the engine is separate from the UI
 
